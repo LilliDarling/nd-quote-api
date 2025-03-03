@@ -4,21 +4,8 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "22"
+  NODE_VERSION = "18"
   NETLIFY_USE_PNPM = "true"
-
-[[plugins]]
-  package = "@netlify/plugin-functions-core"
-
-# Use a custom build command to install pnpm first
-[[plugins]]
-  package = "@netlify/plugin-local-install-core"
-
-[plugins.inputs]
-  packageManager = "pnpm"
-
-[dev]
-  functionsPort = 8888
 
 [[redirects]]
   from = "/api/*"
