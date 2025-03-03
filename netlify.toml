@@ -1,9 +1,14 @@
 [build]
-  command = "npm run build"
+  command = "pnpm run build"
   publish = "public"
   functions = "netlify/functions"
 
+[build.environment]
+  NODE_VERSION = "18"
+  NPM_FLAGS = "--version"  # Prevents Netlify from running npm install
+
 [dev]
+  command = "pnpm run dev"
   functionsPort = 8888
 
 [[redirects]]
@@ -15,3 +20,6 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[plugins]]
+  package = "@netlify/plugin-pnpm"
