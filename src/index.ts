@@ -25,20 +25,17 @@ app.use(helmet({
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
-// API routes
 app.use('/api/quotes', require('./api/quotes').default);
 app.use('/api/keys', require('./api/keys').default);
 app.use('/api/admin/quotes', require('./api/admin/quotes').default);
+app.use('/api/key-requests', require('./api/keyRequests').default);
 
-// Admin dashboard route
 app.get('/admin', (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'));
 });
 
-// API info route
 app.get('/api', (req: Request, res: Response) => {
   const apiInfo: ApiResponse<{ name: string; version: string; documentation: string }> = {
     status: 'success',
@@ -52,12 +49,10 @@ app.get('/api', (req: Request, res: Response) => {
   res.json(apiInfo);
 });
 
-// Home route (demo UI)
 app.get('/', (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// Error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);
   

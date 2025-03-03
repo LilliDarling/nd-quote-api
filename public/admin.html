@@ -44,14 +44,17 @@
             </header>
 
             <div class="content">
-            <ul class="nav nav-tabs" id="adminTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="quotes-tab" data-bs-toggle="tab" data-bs-target="#quotes" type="button" role="tab">Quotes</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                <button class="nav-link" id="keys-tab" data-bs-toggle="tab" data-bs-target="#keys" type="button" role="tab">API Keys</button>
-                </li>
-            </ul>
+                <ul class="nav nav-tabs" id="adminTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="quotes-tab" data-bs-toggle="tab" data-bs-target="#quotes" type="button" role="tab">Quotes</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="keys-tab" data-bs-toggle="tab" data-bs-target="#keys" type="button" role="tab">API Keys</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="requests-tab" data-bs-toggle="tab" data-bs-target="#requests" type="button" role="tab">Key Requests</button>
+                    </li>
+                </ul>
 
             <div class="tab-content mt-3" id="adminTabContent">
                 <!-- Quotes Tab -->
@@ -97,34 +100,74 @@
 
                 <!-- API Keys Tab -->
                 <div class="tab-pane fade" id="keys" role="tabpanel">
-                <div class="d-flex justify-content-between mb-3">
-                    <h3>API Keys</h3>
-                    <button id="addKeyBtn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#keyModal">Generate New Key</button>
-                </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <h3>API Keys</h3>
+                        <button id="addKeyBtn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#keyModal">Generate New Key</button>
+                    </div>
                 
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                    <thead>
-                        <tr>
-                        <th>Name</th>
-                        <th>Created</th>
-                        <th>Status</th>
-                        <th>Usage</th>
-                        <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="keysList">
-                        <!-- API keys will be dynamically added here -->
-                        <tr>
-                        <td colspan="5" class="text-center py-3">
-                            <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </td>
-                        </tr>
-                    </tbody>
-                    </table>
-                </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                        <thead>
+                            <tr>
+                            <th>Name</th>
+                            <th>Created</th>
+                            <th>Status</th>
+                            <th>Usage</th>
+                            <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="keysList">
+                            <!-- API keys will be dynamically added here -->
+                            <tr>
+                            <td colspan="5" class="text-center py-3">
+                                <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </td>
+                            </tr>
+                        </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Tab content for Key Requests -->
+                    <div class="tab-pane fade" id="requests" role="tabpanel">
+                        <div class="d-flex justify-content-between mb-3">
+                        <h3>API Key Requests</h3>
+                        <div>
+                            <select id="requestStatusFilter" class="form-select">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            </select>
+                        </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Usage</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody id="requestsList">
+                            <!-- Key requests will be dynamically added here -->
+                            <tr>
+                                <td colspan="6" class="text-center py-3">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
                 </div>
             </div>
             </div>
@@ -250,682 +293,882 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-            const API_BASE_URL = '/api';
-            let adminSecret = '';
-            let currentQuotePage = 1;
-            let allTags = [];
-            let allQuotes = []; // Cache for duplicate detection
-            
-            // Bootstrap Modal Instances
-            const quoteModal = new bootstrap.Modal(document.getElementById('quoteModal'));
-            const keyModal = new bootstrap.Modal(document.getElementById('keyModal'));
-            const keyResultModal = new bootstrap.Modal(document.getElementById('keyResultModal'));
-            const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-            
-            // Login Logic
-            document.getElementById('loginBtn').addEventListener('click', login);
-            document.getElementById('logoutBtn').addEventListener('click', logout);
-            
-            // Check if already logged in
-            if (localStorage.getItem('adminSecret')) {
-                adminSecret = localStorage.getItem('adminSecret');
-                showDashboard();
-            }
-            
-            // Tab change handlers
-            document.getElementById('quotes-tab').addEventListener('click', loadQuotes);
-            document.getElementById('keys-tab').addEventListener('click', loadApiKeys);
-            
-            // Quote Management
-            document.getElementById('addQuoteBtn').addEventListener('click', () => prepareQuoteModal('add'));
-            document.getElementById('saveQuoteBtn').addEventListener('click', saveQuote);
-            document.getElementById('applyFiltersBtn').addEventListener('click', () => {
-                currentQuotePage = 1;
-                loadQuotes();
-            });
-            
-            // API Key Management
-            document.getElementById('generateKeyBtn').addEventListener('click', generateApiKey);
-            document.getElementById('copyKeyBtn').addEventListener('click', copyApiKey);
-            
-            // Delete Confirmation
-            document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDelete);
-            
-            function login() {
-                const secretInput = document.getElementById('adminSecret');
-                adminSecret = secretInput.value.trim();
+                const API_BASE_URL = '/api';
+                let adminSecret = '';
+                let currentQuotePage = 1;
+                let allTags = [];
+                let allQuotes = []; // Cache for duplicate detection
                 
-                if (!adminSecret) {
-                alert('Please enter the admin secret');
-                return;
+                // Bootstrap Modal Instances
+                const quoteModal = new bootstrap.Modal(document.getElementById('quoteModal'));
+                const keyModal = new bootstrap.Modal(document.getElementById('keyModal'));
+                const keyResultModal = new bootstrap.Modal(document.getElementById('keyResultModal'));
+                const deleteConfirmModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+                
+                // Login Logic
+                document.getElementById('loginBtn').addEventListener('click', login);
+                document.getElementById('logoutBtn').addEventListener('click', logout);
+            
+                // Check if already logged in
+                if (localStorage.getItem('adminSecret')) {
+                    adminSecret = localStorage.getItem('adminSecret');
+                    showDashboard();
                 }
-                
-                // Store in localStorage for persistence
-                localStorage.setItem('adminSecret', adminSecret);
-                showDashboard();
-            }
             
-            function logout() {
-                adminSecret = '';
-                localStorage.removeItem('adminSecret');
-                document.getElementById('loginForm').classList.remove('d-none');
-                document.getElementById('dashboard').classList.add('d-none');
-            }
-            
-            function showDashboard() {
-                document.getElementById('loginForm').classList.add('d-none');
-                document.getElementById('dashboard').classList.remove('d-none');
+                // Tab change handlers
+                document.getElementById('quotes-tab').addEventListener('click', loadQuotes);
+                document.getElementById('keys-tab').addEventListener('click', loadApiKeys);
                 
-                // Load initial data
-                loadQuotes();
-                loadTags();
-                loadAllQuotes(); // Load quotes for duplicate detection
-            }
-            
-            async function loadQuotes() {
-                const quotesList = document.getElementById('quotesList');
-                quotesList.innerHTML = '<div class="text-center py-5 col-12"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
-                
-                try {
-                // Get filter values
-                const statusFilter = document.getElementById('statusFilter').value;
-                const tagFilter = document.getElementById('tagFilter').value;
-                
-                // Build query parameters
-                let queryParams = `page=${currentQuotePage}&limit=10`;
-                if (statusFilter) queryParams += `&isPublished=${statusFilter}`;
-                if (tagFilter) queryParams += `&tag=${encodeURIComponent(tagFilter)}`;
-                
-                const response = await fetch(`${API_BASE_URL}/admin/quotes?${queryParams}`, {
-                    headers: {
-                    'X-Admin-Secret': adminSecret
-                    }
+                // Quote Management
+                document.getElementById('addQuoteBtn').addEventListener('click', () => prepareQuoteModal('add'));
+                document.getElementById('saveQuoteBtn').addEventListener('click', saveQuote);
+                document.getElementById('applyFiltersBtn').addEventListener('click', () => {
+                    currentQuotePage = 1;
+                    loadQuotes();
                 });
+            
+                // API Key Management
+                document.getElementById('generateKeyBtn').addEventListener('click', generateApiKey);
+                document.getElementById('copyKeyBtn').addEventListener('click', copyApiKey);
                 
-                if (!response.ok) {
-                    if (response.status === 403) {
-                    logout();
-                    alert('Invalid admin secret. Please login again.');
+                // Delete Confirmation
+                document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDelete);
+            
+                function login() {
+                    const secretInput = document.getElementById('adminSecret');
+                    adminSecret = secretInput.value.trim();
+                    
+                    if (!adminSecret) {
+                    alert('Please enter the admin secret');
                     return;
                     }
-                    throw new Error('Failed to fetch quotes');
-                }
-                
-                const result = await response.json();
-                
-                if (result.status === 'success' && result.data) {
-                    // Update the quotes cache
-                    allQuotes = result.data;
-                    renderQuotes(result.data, result.pagination);
-                } else {
-                    quotesList.innerHTML = '<div class="col-12 text-center py-4"><p>No quotes found</p></div>';
-                }
-                } catch (error) {
-                console.error('Error loading quotes:', error);
-                quotesList.innerHTML = '<div class="col-12 text-center py-4"><p class="text-danger">Error loading quotes</p></div>';
-                }
-            }
-            
-            // Load all quotes for duplicate detection
-            async function loadAllQuotes() {
-                try {
-                // Get a larger batch of quotes for duplicate checking
-                const response = await fetch(`${API_BASE_URL}/admin/quotes?limit=100`, {
-                    headers: {
-                    'X-Admin-Secret': adminSecret
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch quotes');
-                }
-                
-                const result = await response.json();
-                
-                if (result.status === 'success' && result.data) {
-                    allQuotes = result.data;
-                }
-                } catch (error) {
-                console.error('Error loading all quotes:', error);
-                }
-            }
-            
-            // Function to check for potential duplicates
-            async function checkForDuplicates(text) {
-                // Make sure we have quotes to check against
-                if (allQuotes.length === 0) {
-                await loadAllQuotes();
-                }
-                
-                // Simple text similarity check
-                text = text.toLowerCase().trim();
-                
-                // Look for exact matches or very similar quotes
-                return allQuotes.some(quote => {
-                const quoteText = quote.text.toLowerCase().trim();
-                
-                // Exact match
-                if (quoteText === text) return true;
-                
-                // Very similar (contains most of the text)
-                if (quoteText.includes(text) || text.includes(quoteText)) return true;
-                
-                // Levenshtein distance for close matches - simplified version
-                // This is a basic implementation for demo purposes
-                if (quoteText.length > 20 && text.length > 20) {
-                    // For longer quotes, check if they share a significant portion of words
-                    const words1 = quoteText.split(/\s+/);
-                    const words2 = text.split(/\s+/);
                     
-                    let commonWords = 0;
-                    for (const word of words1) {
-                    if (words2.includes(word) && word.length > 3) {
-                        commonWords++;
-                    }
-                    }
-                    
-                    // If they share a high percentage of words
-                    if (commonWords / Math.max(words1.length, words2.length) > 0.7) {
-                    return true;
-                    }
+                    // Store in localStorage for persistence
+                    localStorage.setItem('adminSecret', adminSecret);
+                    showDashboard();
                 }
-                
-                return false;
-                });
-            }
             
-            function renderQuotes(quotes, pagination) {
-                const quotesList = document.getElementById('quotesList');
-                const paginationEl = document.getElementById('quotesPagination');
-                
-                if (!quotes.length) {
-                quotesList.innerHTML = '<div class="col-12 text-center py-4"><p>No quotes found</p></div>';
-                paginationEl.innerHTML = '';
-                return;
+                function logout() {
+                    adminSecret = '';
+                    localStorage.removeItem('adminSecret');
+                    document.getElementById('loginForm').classList.remove('d-none');
+                    document.getElementById('dashboard').classList.add('d-none');
                 }
                 
-                let html = '';
-                
-                quotes.forEach(quote => {
-                let tagsHtml = '';
-                
-                if (quote.tags && quote.tags.length) {
-                    quote.tags.forEach(tag => {
-                    tagsHtml += `<span class="badge bg-info tag-badge">${tag}</span>`;
-                    });
-                }
-                
-                html += `
-                    <div class="col-md-6 col-lg-4">
-                    <div class="card quote-card">
-                        <div class="card-body">
-                        <blockquote class="mb-0">
-                            <p>${quote.text}</p>
-                            <footer class="blockquote-footer">${quote.author}</footer>
-                        </blockquote>
-                        <div class="mt-2 mb-2">
-                            ${tagsHtml}
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                            <span class="badge ${quote.isPublished ? 'bg-success' : 'bg-warning'}">
-                                ${quote.isPublished ? 'Published' : 'Unpublished'}
-                            </span>
-                            </div>
-                            <div>
-                            <button class="btn btn-sm btn-outline-primary edit-quote-btn" data-id="${quote._id}">Edit</button>
-                            <button class="btn btn-sm btn-outline-danger delete-quote-btn" data-id="${quote._id}">Delete</button>
-                            </div>
-                        </div>
-                        </div>
-                    </div>
-                    </div>
-                `;
-                });
-                
-                quotesList.innerHTML = html;
-                
-                // Setup pagination
-                if (pagination) {
-                let paginationHtml = '';
-                
-                // Previous button
-                paginationHtml += `
-                    <li class="page-item ${pagination.page <= 1 ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${pagination.page - 1}" aria-label="Previous">
-                        <span aria-hidden="true">&laquo;</span>
-                    </a>
-                    </li>
-                `;
-                
-                // Page numbers
-                for (let i = 1; i <= pagination.pages; i++) {
-                    paginationHtml += `
-                    <li class="page-item ${pagination.page === i ? 'active' : ''}">
-                        <a class="page-link" href="#" data-page="${i}">${i}</a>
-                    </li>
-                    `;
-                }
-                
-                // Next button
-                paginationHtml += `
-                    <li class="page-item ${pagination.page >= pagination.pages ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${pagination.page + 1}" aria-label="Next">
-                        <span aria-hidden="true">&raquo;</span>
-                    </a>
-                    </li>
-                `;
-                
-                paginationEl.innerHTML = paginationHtml;
-                
-                // Add pagination click handlers
-                paginationEl.querySelectorAll('.page-link').forEach(link => {
-                    link.addEventListener('click', e => {
-                    e.preventDefault();
-                    currentQuotePage = parseInt(e.target.dataset.page || e.target.parentElement.dataset.page);
+                function showDashboard() {
+                    document.getElementById('loginForm').classList.add('d-none');
+                    document.getElementById('dashboard').classList.remove('d-none');
+                    
+                    // Load initial data
                     loadQuotes();
+                    loadTags();
+                    loadAllQuotes(); // Load quotes for duplicate detection
+                }
+                
+                async function loadQuotes() {
+                    const quotesList = document.getElementById('quotesList');
+                    quotesList.innerHTML = '<div class="text-center py-5 col-12"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+                    
+                    try {
+                    // Get filter values
+                    const statusFilter = document.getElementById('statusFilter').value;
+                    const tagFilter = document.getElementById('tagFilter').value;
+                    
+                    // Build query parameters
+                    let queryParams = `page=${currentQuotePage}&limit=10`;
+                    if (statusFilter) queryParams += `&isPublished=${statusFilter}`;
+                    if (tagFilter) queryParams += `&tag=${encodeURIComponent(tagFilter)}`;
+                    
+                    const response = await fetch(`${API_BASE_URL}/admin/quotes?${queryParams}`, {
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
                     });
-                });
-                }
-                
-                // Add edit buttons click handlers
-                document.querySelectorAll('.edit-quote-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const quoteId = btn.dataset.id;
-                    loadQuoteForEdit(quoteId);
-                });
-                });
-                
-                // Add delete buttons click handlers
-                document.querySelectorAll('.delete-quote-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const quoteId = btn.dataset.id;
-                    document.getElementById('deleteItemId').value = quoteId;
-                    document.getElementById('deleteItemType').value = 'quote';
-                    deleteConfirmModal.show();
-                });
-                });
-            }
-            
-            async function loadTags() {
-                try {
-                const response = await fetch(`${API_BASE_URL}/admin/quotes/tags/all`, {
-                    headers: {
-                    'X-Admin-Secret': adminSecret
+                    
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                        logout();
+                        alert('Invalid admin secret. Please login again.');
+                        return;
+                        }
+                        throw new Error('Failed to fetch quotes');
                     }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch tags');
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.data) {
+                        // Update the quotes cache
+                        allQuotes = result.data;
+                        renderQuotes(result.data, result.pagination);
+                    } else {
+                        quotesList.innerHTML = '<div class="col-12 text-center py-4"><p>No quotes found</p></div>';
+                    }
+                    } catch (error) {
+                    console.error('Error loading quotes:', error);
+                    quotesList.innerHTML = '<div class="col-12 text-center py-4"><p class="text-danger">Error loading quotes</p></div>';
+                    }
+                }
+            
+                // Load all quotes for duplicate detection
+                async function loadAllQuotes() {
+                    try {
+                    // Get a larger batch of quotes for duplicate checking
+                    const response = await fetch(`${API_BASE_URL}/admin/quotes?limit=100`, {
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch quotes');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.data) {
+                        allQuotes = result.data;
+                    }
+                    } catch (error) {
+                    console.error('Error loading all quotes:', error);
+                    }
                 }
                 
-                const result = await response.json();
-                
-                if (result.status === 'success' && result.data) {
-                    allTags = result.data;
+                // Function to check for potential duplicates
+                async function checkForDuplicates(text) {
+                    // Make sure we have quotes to check against
+                    if (allQuotes.length === 0) {
+                    await loadAllQuotes();
+                    }
                     
-                    // Populate tag filter dropdown
-                    const tagFilter = document.getElementById('tagFilter');
-                    tagFilter.innerHTML = '<option value="">All Tags</option>';
+                    // Simple text similarity check
+                    text = text.toLowerCase().trim();
                     
-                    allTags.forEach(tag => {
-                    tagFilter.innerHTML += `<option value="${tag}">${tag}</option>`;
+                    // Look for exact matches or very similar quotes
+                    return allQuotes.some(quote => {
+                    const quoteText = quote.text.toLowerCase().trim();
+                    
+                    // Exact match
+                    if (quoteText === text) return true;
+                    
+                    // Very similar (contains most of the text)
+                    if (quoteText.includes(text) || text.includes(quoteText)) return true;
+                    
+                    // Levenshtein distance for close matches - simplified version
+                    // This is a basic implementation for demo purposes
+                    if (quoteText.length > 20 && text.length > 20) {
+                        // For longer quotes, check if they share a significant portion of words
+                        const words1 = quoteText.split(/\s+/);
+                        const words2 = text.split(/\s+/);
+                        
+                        let commonWords = 0;
+                        for (const word of words1) {
+                        if (words2.includes(word) && word.length > 3) {
+                            commonWords++;
+                        }
+                        }
+                        
+                        // If they share a high percentage of words
+                        if (commonWords / Math.max(words1.length, words2.length) > 0.7) {
+                        return true;
+                        }
+                    }
+                    
+                    return false;
                     });
                 }
-                } catch (error) {
-                console.error('Error loading tags:', error);
-                }
-            }
             
-            async function loadQuoteForEdit(quoteId) {
-                try {
-                const response = await fetch(`${API_BASE_URL}/admin/quotes/${quoteId}`, {
-                    headers: {
-                    'X-Admin-Secret': adminSecret
+                function renderQuotes(quotes, pagination) {
+                    const quotesList = document.getElementById('quotesList');
+                    const paginationEl = document.getElementById('quotesPagination');
+                    
+                    if (!quotes.length) {
+                    quotesList.innerHTML = '<div class="col-12 text-center py-4"><p>No quotes found</p></div>';
+                    paginationEl.innerHTML = '';
+                    return;
                     }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch quote details');
+                    
+                    let html = '';
+                    
+                    quotes.forEach(quote => {
+                    let tagsHtml = '';
+                    
+                    if (quote.tags && quote.tags.length) {
+                        quote.tags.forEach(tag => {
+                        tagsHtml += `<span class="badge bg-info tag-badge">${tag}</span>`;
+                        });
+                    }
+                    
+                    html += `
+                        <div class="col-md-6 col-lg-4">
+                        <div class="card quote-card">
+                            <div class="card-body">
+                            <blockquote class="mb-0">
+                                <p>${quote.text}</p>
+                                <footer class="blockquote-footer">${quote.author}</footer>
+                            </blockquote>
+                            <div class="mt-2 mb-2">
+                                ${tagsHtml}
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                <span class="badge ${quote.isPublished ? 'bg-success' : 'bg-warning'}">
+                                    ${quote.isPublished ? 'Published' : 'Unpublished'}
+                                </span>
+                                </div>
+                                <div>
+                                <button class="btn btn-sm btn-outline-primary edit-quote-btn" data-id="${quote._id}">Edit</button>
+                                <button class="btn btn-sm btn-outline-danger delete-quote-btn" data-id="${quote._id}">Delete</button>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+                    `;
+                    });
+                    
+                    quotesList.innerHTML = html;
+                    
+                    // Setup pagination
+                    if (pagination) {
+                    let paginationHtml = '';
+                    
+                    // Previous button
+                    paginationHtml += `
+                        <li class="page-item ${pagination.page <= 1 ? 'disabled' : ''}">
+                        <a class="page-link" href="#" data-page="${pagination.page - 1}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                        </li>
+                    `;
+                    
+                    // Page numbers
+                    for (let i = 1; i <= pagination.pages; i++) {
+                        paginationHtml += `
+                        <li class="page-item ${pagination.page === i ? 'active' : ''}">
+                            <a class="page-link" href="#" data-page="${i}">${i}</a>
+                        </li>
+                        `;
+                    }
+                    
+                    // Next button
+                    paginationHtml += `
+                        <li class="page-item ${pagination.page >= pagination.pages ? 'disabled' : ''}">
+                        <a class="page-link" href="#" data-page="${pagination.page + 1}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                        </li>
+                    `;
+                    
+                    paginationEl.innerHTML = paginationHtml;
+                    
+                    // Add pagination click handlers
+                    paginationEl.querySelectorAll('.page-link').forEach(link => {
+                        link.addEventListener('click', e => {
+                        e.preventDefault();
+                        currentQuotePage = parseInt(e.target.dataset.page || e.target.parentElement.dataset.page);
+                        loadQuotes();
+                        });
+                    });
+                    }
+                    
+                    // Add edit buttons click handlers
+                    document.querySelectorAll('.edit-quote-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const quoteId = btn.dataset.id;
+                        loadQuoteForEdit(quoteId);
+                    });
+                    });
+                    
+                    // Add delete buttons click handlers
+                    document.querySelectorAll('.delete-quote-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const quoteId = btn.dataset.id;
+                        document.getElementById('deleteItemId').value = quoteId;
+                        document.getElementById('deleteItemType').value = 'quote';
+                        deleteConfirmModal.show();
+                    });
+                    });
                 }
                 
-                const result = await response.json();
-                
-                if (result.status === 'success' && result.data) {
-                    const quote = result.data;
+                async function loadTags() {
+                    try {
+                    const response = await fetch(`${API_BASE_URL}/admin/quotes/tags/all`, {
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
                     
-                    // Populate the form
-                    document.getElementById('quoteId').value = quote._id;
-                    document.getElementById('quoteText').value = quote.text;
-                    document.getElementById('quoteAuthor').value = quote.author;
-                    document.getElementById('quoteSource').value = quote.source || '';
-                    document.getElementById('quoteTags').value = quote.tags ? quote.tags.join(', ') : '';
-                    document.getElementById('quotePublished').checked = quote.isPublished;
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch tags');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.data) {
+                        allTags = result.data;
+                        
+                        // Populate tag filter dropdown
+                        const tagFilter = document.getElementById('tagFilter');
+                        tagFilter.innerHTML = '<option value="">All Tags</option>';
+                        
+                        allTags.forEach(tag => {
+                        tagFilter.innerHTML += `<option value="${tag}">${tag}</option>`;
+                        });
+                    }
+                    } catch (error) {
+                    console.error('Error loading tags:', error);
+                    }
+                }
+                
+                async function loadQuoteForEdit(quoteId) {
+                    try {
+                    const response = await fetch(`${API_BASE_URL}/admin/quotes/${quoteId}`, {
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch quote details');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.data) {
+                        const quote = result.data;
+                        
+                        // Populate the form
+                        document.getElementById('quoteId').value = quote._id;
+                        document.getElementById('quoteText').value = quote.text;
+                        document.getElementById('quoteAuthor').value = quote.author;
+                        document.getElementById('quoteSource').value = quote.source || '';
+                        document.getElementById('quoteTags').value = quote.tags ? quote.tags.join(', ') : '';
+                        document.getElementById('quotePublished').checked = quote.isPublished;
+                        
+                        // Update modal title
+                        document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
+                        
+                        // Show modal
+                        quoteModal.show();
+                    }
+                    } catch (error) {
+                    console.error('Error loading quote for edit:', error);
+                    alert('Failed to load quote details');
+                    }
+                }
+                
+                function prepareQuoteModal(mode) {
+                    // Reset form
+                    document.getElementById('quoteForm').reset();
+                    document.getElementById('quoteId').value = '';
                     
                     // Update modal title
-                    document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
+                    document.getElementById('quoteModalTitle').textContent = mode === 'add' ? 'Add Quote' : 'Edit Quote';
+                }
+                
+                async function saveQuote() {
+                    try {
+                    // Get form values
+                    const quoteId = document.getElementById('quoteId').value;
+                    const text = document.getElementById('quoteText').value.trim();
+                    const author = document.getElementById('quoteAuthor').value.trim();
+                    const source = document.getElementById('quoteSource').value.trim();
+                    const tags = document.getElementById('quoteTags').value
+                        .split(',')
+                        .map(tag => tag.trim())
+                        .filter(tag => tag);
+                    const isPublished = document.getElementById('quotePublished').checked;
                     
-                    // Show modal
-                    quoteModal.show();
-                }
-                } catch (error) {
-                console.error('Error loading quote for edit:', error);
-                alert('Failed to load quote details');
-                }
-            }
-            
-            function prepareQuoteModal(mode) {
-                // Reset form
-                document.getElementById('quoteForm').reset();
-                document.getElementById('quoteId').value = '';
-                
-                // Update modal title
-                document.getElementById('quoteModalTitle').textContent = mode === 'add' ? 'Add Quote' : 'Edit Quote';
-            }
-            
-            async function saveQuote() {
-                try {
-                // Get form values
-                const quoteId = document.getElementById('quoteId').value;
-                const text = document.getElementById('quoteText').value.trim();
-                const author = document.getElementById('quoteAuthor').value.trim();
-                const source = document.getElementById('quoteSource').value.trim();
-                const tags = document.getElementById('quoteTags').value
-                    .split(',')
-                    .map(tag => tag.trim())
-                    .filter(tag => tag);
-                const isPublished = document.getElementById('quotePublished').checked;
-                
-                // Validate required fields
-                if (!text || !author) {
-                    alert('Quote text and author are required');
-                    return;
-                }
-                
-                // Check if this is a potential duplicate quote (if not in edit mode)
-                if (!quoteId) {
-                    // Simple client-side duplicate detection
-                    const potentialDuplicates = await checkForDuplicates(text);
-                    if (potentialDuplicates) {
-                    const confirmAdd = confirm("A similar quote may already exist. Add anyway?");
-                    if (!confirmAdd) return;
+                    // Validate required fields
+                    if (!text || !author) {
+                        alert('Quote text and author are required');
+                        return;
+                    }
+                    
+                    // Check if this is a potential duplicate quote (if not in edit mode)
+                    if (!quoteId) {
+                        // Simple client-side duplicate detection
+                        const potentialDuplicates = await checkForDuplicates(text);
+                        if (potentialDuplicates) {
+                        const confirmAdd = confirm("A similar quote may already exist. Add anyway?");
+                        if (!confirmAdd) return;
+                        }
+                    }
+                    
+                    const quoteData = {
+                        text,
+                        author,
+                        source: source || undefined,
+                        tags,
+                        isPublished
+                    };
+                    
+                    let url = `${API_BASE_URL}/admin/quotes`;
+                    let method = 'POST';
+                    
+                    // If editing, use PUT method
+                    if (quoteId) {
+                        url = `${API_BASE_URL}/admin/quotes/${quoteId}`;
+                        method = 'PUT';
+                    }
+                    
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': adminSecret
+                        },
+                        body: JSON.stringify(quoteData)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to ${quoteId ? 'update' : 'create'} quote`);
+                    }
+                    
+                    // Hide modal and reload quotes
+                    quoteModal.hide();
+                    loadQuotes();
+                    loadTags(); // Refresh tags as new ones might have been added
+                    
+                    } catch (error) {
+                    console.error('Error saving quote:', error);
+                    alert(`Failed to ${quoteId ? 'update' : 'create'} quote`);
                     }
                 }
                 
-                const quoteData = {
-                    text,
-                    author,
-                    source: source || undefined,
-                    tags,
-                    isPublished
-                };
-                
-                let url = `${API_BASE_URL}/admin/quotes`;
-                let method = 'POST';
-                
-                // If editing, use PUT method
-                if (quoteId) {
-                    url = `${API_BASE_URL}/admin/quotes/${quoteId}`;
-                    method = 'PUT';
-                }
-                
-                const response = await fetch(url, {
-                    method,
-                    headers: {
-                    'Content-Type': 'application/json',
-                    'X-Admin-Secret': adminSecret
-                    },
-                    body: JSON.stringify(quoteData)
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to ${quoteId ? 'update' : 'create'} quote`);
-                }
-                
-                // Hide modal and reload quotes
-                quoteModal.hide();
-                loadQuotes();
-                loadTags(); // Refresh tags as new ones might have been added
-                
-                } catch (error) {
-                console.error('Error saving quote:', error);
-                alert(`Failed to ${quoteId ? 'update' : 'create'} quote`);
-                }
-            }
-            
-            async function loadApiKeys() {
-                const keysList = document.getElementById('keysList');
-                keysList.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
-                
-                try {
-                const response = await fetch(`${API_BASE_URL}/keys`, {
-                    headers: {
-                    'X-Admin-Secret': adminSecret
+                async function loadApiKeys() {
+                    const keysList = document.getElementById('keysList');
+                    keysList.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
+                    
+                    try {
+                    const response = await fetch(`${API_BASE_URL}/keys`, {
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                        logout();
+                        alert('Invalid admin secret. Please login again.');
+                        return;
+                        }
+                        throw new Error('Failed to fetch API keys');
                     }
-                });
-                
-                if (!response.ok) {
-                    if (response.status === 403) {
-                    logout();
-                    alert('Invalid admin secret. Please login again.');
-                    return;
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.data) {
+                        renderApiKeys(result.data);
+                    } else {
+                        keysList.innerHTML = '<tr><td colspan="5" class="text-center">No API keys found</td></tr>';
                     }
-                    throw new Error('Failed to fetch API keys');
+                    } catch (error) {
+                    console.error('Error loading API keys:', error);
+                    keysList.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading API keys</td></tr>';
+                    }
                 }
                 
-                const result = await response.json();
-                
-                if (result.status === 'success' && result.data) {
-                    renderApiKeys(result.data);
-                } else {
+                function renderApiKeys(keys) {
+                    const keysList = document.getElementById('keysList');
+                    
+                    if (!keys.length) {
                     keysList.innerHTML = '<tr><td colspan="5" class="text-center">No API keys found</td></tr>';
-                }
-                } catch (error) {
-                console.error('Error loading API keys:', error);
-                keysList.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading API keys</td></tr>';
-                }
-            }
-            
-            function renderApiKeys(keys) {
-                const keysList = document.getElementById('keysList');
-                
-                if (!keys.length) {
-                keysList.innerHTML = '<tr><td colspan="5" class="text-center">No API keys found</td></tr>';
-                return;
-                }
-                
-                let html = '';
-                
-                keys.forEach(key => {
-                const createdDate = new Date(key.createdAt).toLocaleDateString();
-                const lastUsed = key.usage.lastUsed 
-                    ? new Date(key.usage.lastUsed).toLocaleDateString() 
-                    : 'Never';
-                
-                html += `
-                    <tr>
-                    <td>${key.name}</td>
-                    <td>${createdDate}</td>
-                    <td>
-                        <span class="badge ${key.active ? 'bg-success' : 'bg-danger'}">
-                        ${key.active ? 'Active' : 'Inactive'}
-                        </span>
-                    </td>
-                    <td>
-                        ${key.usage.count} requests<br>
-                        <small>Last used: ${lastUsed}</small>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary toggle-key-btn" 
-                        data-id="${key._id}" 
-                        data-active="${key.active}">
-                        ${key.active ? 'Disable' : 'Enable'}
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger delete-key-btn" 
-                        data-id="${key._id}">
-                        Delete
-                        </button>
-                    </td>
-                    </tr>
-                `;
-                });
-                
-                keysList.innerHTML = html;
-                
-                // Add toggle buttons click handlers
-                document.querySelectorAll('.toggle-key-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const keyId = btn.dataset.id;
-                    const currentlyActive = btn.dataset.active === 'true';
-                    toggleApiKey(keyId, !currentlyActive);
-                });
-                });
-                
-                // Add delete buttons click handlers
-                document.querySelectorAll('.delete-key-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const keyId = btn.dataset.id;
-                    document.getElementById('deleteItemId').value = keyId;
-                    document.getElementById('deleteItemType').value = 'key';
-                    deleteConfirmModal.show();
-                });
-                });
-            }
-            
-            async function generateApiKey() {
-                try {
-                const name = document.getElementById('keyName').value.trim();
-                const description = document.getElementById('keyDescription').value.trim();
-                
-                if (!name) {
-                    alert('Key name is required');
                     return;
+                    }
+                    
+                    let html = '';
+                    
+                    keys.forEach(key => {
+                    const createdDate = new Date(key.createdAt).toLocaleDateString();
+                    const lastUsed = key.usage.lastUsed 
+                        ? new Date(key.usage.lastUsed).toLocaleDateString() 
+                        : 'Never';
+                    
+                    html += `
+                        <tr>
+                        <td>${key.name}</td>
+                        <td>${createdDate}</td>
+                        <td>
+                            <span class="badge ${key.active ? 'bg-success' : 'bg-danger'}">
+                            ${key.active ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td>
+                            ${key.usage.count} requests<br>
+                            <small>Last used: ${lastUsed}</small>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary toggle-key-btn" 
+                            data-id="${key._id}" 
+                            data-active="${key.active}">
+                            ${key.active ? 'Disable' : 'Enable'}
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-key-btn" 
+                            data-id="${key._id}">
+                            Delete
+                            </button>
+                        </td>
+                        </tr>
+                    `;
+                    });
+                    
+                    keysList.innerHTML = html;
+                    
+                    // Add toggle buttons click handlers
+                    document.querySelectorAll('.toggle-key-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const keyId = btn.dataset.id;
+                        const currentlyActive = btn.dataset.active === 'true';
+                        toggleApiKey(keyId, !currentlyActive);
+                    });
+                    });
+                    
+                    // Add delete buttons click handlers
+                    document.querySelectorAll('.delete-key-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const keyId = btn.dataset.id;
+                        document.getElementById('deleteItemId').value = keyId;
+                        document.getElementById('deleteItemType').value = 'key';
+                        deleteConfirmModal.show();
+                    });
+                    });
                 }
                 
-                const response = await fetch(`${API_BASE_URL}/keys`, {
-                    method: 'POST',
-                    headers: {
-                    'Content-Type': 'application/json',
-                    'X-Admin-Secret': adminSecret
-                    },
-                    body: JSON.stringify({
-                    name,
-                    description: description || undefined
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to generate API key');
+                async function generateApiKey() {
+                    try {
+                    const name = document.getElementById('keyName').value.trim();
+                    const description = document.getElementById('keyDescription').value.trim();
+                    
+                    if (!name) {
+                        alert('Key name is required');
+                        return;
+                    }
+                    
+                    const response = await fetch(`${API_BASE_URL}/keys`, {
+                        method: 'POST',
+                        headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': adminSecret
+                        },
+                        body: JSON.stringify({
+                        name,
+                        description: description || undefined
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to generate API key');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.data) {
+                        // Hide the key form modal
+                        keyModal.hide();
+                        
+                        // Show the key result modal with the generated key
+                        document.getElementById('generatedKey').value = result.data.key;
+                        keyResultModal.show();
+                        
+                        // Reset the form
+                        document.getElementById('keyForm').reset();
+                        
+                        // Reload the keys list
+                        loadApiKeys();
+                    }
+                    } catch (error) {
+                    console.error('Error generating API key:', error);
+                    alert('Failed to generate API key');
+                    }
                 }
                 
-                const result = await response.json();
+                function copyApiKey() {
+                    const keyInput = document.getElementById('generatedKey');
+                    keyInput.select();
+                    document.execCommand('copy');
+                    
+                    // Show feedback
+                    const copyBtn = document.getElementById('copyKeyBtn');
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    copyBtn.classList.add('btn-success');
+                    
+                    setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.classList.remove('btn-success');
+                    }, 2000);
+                }
                 
-                if (result.status === 'success' && result.data) {
-                    // Hide the key form modal
-                    keyModal.hide();
+                async function toggleApiKey(keyId, active) {
+                    try {
+                    const response = await fetch(`${API_BASE_URL}/keys/${keyId}`, {
+                        method: 'PATCH',
+                        headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': adminSecret
+                        },
+                        body: JSON.stringify({
+                        active
+                        })
+                    });
                     
-                    // Show the key result modal with the generated key
-                    document.getElementById('generatedKey').value = result.data.key;
-                    keyResultModal.show();
-                    
-                    // Reset the form
-                    document.getElementById('keyForm').reset();
+                    if (!response.ok) {
+                        throw new Error('Failed to update API key');
+                    }
                     
                     // Reload the keys list
                     loadApiKeys();
-                }
-                } catch (error) {
-                console.error('Error generating API key:', error);
-                alert('Failed to generate API key');
-                }
-            }
-            
-            function copyApiKey() {
-                const keyInput = document.getElementById('generatedKey');
-                keyInput.select();
-                document.execCommand('copy');
-                
-                // Show feedback
-                const copyBtn = document.getElementById('copyKeyBtn');
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = 'Copied!';
-                copyBtn.classList.add('btn-success');
-                
-                setTimeout(() => {
-                copyBtn.textContent = originalText;
-                copyBtn.classList.remove('btn-success');
-                }, 2000);
-            }
-            
-            async function toggleApiKey(keyId, active) {
-                try {
-                const response = await fetch(`${API_BASE_URL}/keys/${keyId}`, {
-                    method: 'PATCH',
-                    headers: {
-                    'Content-Type': 'application/json',
-                    'X-Admin-Secret': adminSecret
-                    },
-                    body: JSON.stringify({
-                    active
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to update API key');
-                }
-                
-                // Reload the keys list
-                loadApiKeys();
-                } catch (error) {
-                console.error('Error toggling API key:', error);
-                alert('Failed to update API key');
-                }
-            }
-            
-            async function confirmDelete() {
-                const itemId = document.getElementById('deleteItemId').value;
-                const itemType = document.getElementById('deleteItemType').value;
-                
-                if (!itemId || !itemType) {
-                return;
-                }
-                
-                try {
-                let url = '';
-                
-                if (itemType === 'quote') {
-                    url = `${API_BASE_URL}/admin/quotes/${itemId}`;
-                } else if (itemType === 'key') {
-                    url = `${API_BASE_URL}/keys/${itemId}`;
-                } else {
-                    throw new Error('Unknown item type');
-                }
-                
-                const response = await fetch(url, {
-                    method: 'DELETE',
-                    headers: {
-                    'X-Admin-Secret': adminSecret
+                    } catch (error) {
+                    console.error('Error toggling API key:', error);
+                    alert('Failed to update API key');
                     }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to delete ${itemType}`);
                 }
                 
-                // Hide the modal
-                deleteConfirmModal.hide();
+                async function confirmDelete() {
+                    const itemId = document.getElementById('deleteItemId').value;
+                    const itemType = document.getElementById('deleteItemType').value;
+                    
+                    if (!itemId || !itemType) {
+                    return;
+                    }
+                    
+                    try {
+                    let url = '';
+                    
+                    if (itemType === 'quote') {
+                        url = `${API_BASE_URL}/admin/quotes/${itemId}`;
+                    } else if (itemType === 'key') {
+                        url = `${API_BASE_URL}/keys/${itemId}`;
+                    } else {
+                        throw new Error('Unknown item type');
+                    }
+                    
+                    const response = await fetch(url, {
+                        method: 'DELETE',
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to delete ${itemType}`);
+                    }
+                    
+                    // Hide the modal
+                    deleteConfirmModal.hide();
+                    
+                    // Reload the appropriate list
+                    if (itemType === 'quote') {
+                        loadQuotes();
+                    } else if (itemType === 'key') {
+                        loadApiKeys();
+                    }
+                    } catch (error) {
+                    console.error(`Error deleting ${itemType}:`, error);
+                    alert(`Failed to delete ${itemType}`);
+                    }
+                }
+
+                // Key Requests tab functionality
+                document.getElementById('requests-tab').addEventListener('click', loadKeyRequests);
                 
-                // Reload the appropriate list
-                if (itemType === 'quote') {
-                    loadQuotes();
-                } else if (itemType === 'key') {
-                    loadApiKeys();
+                // Request status filter
+                document.getElementById('requestStatusFilter').addEventListener('change', loadKeyRequests);
+                
+                async function loadKeyRequests() {
+                    const requestsList = document.getElementById('requestsList');
+                    requestsList.innerHTML = '<tr><td colspan="6" class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
+                    
+                    try {
+                    // Get filter value
+                    const statusFilter = document.getElementById('requestStatusFilter').value;
+                    
+                    // Build query parameters
+                    let queryParams = '';
+                    if (statusFilter) queryParams = `?status=${statusFilter}`;
+                    
+                    const response = await fetch(`${API_BASE_URL}/key-requests${queryParams}`, {
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                        logout();
+                        alert('Invalid admin secret. Please login again.');
+                        return;
+                        }
+                        throw new Error('Failed to fetch key requests');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.data) {
+                        renderKeyRequests(result.data);
+                    } else {
+                        requestsList.innerHTML = '<tr><td colspan="6" class="text-center">No key requests found</td></tr>';
+                    }
+                    } catch (error) {
+                    console.error('Error loading key requests:', error);
+                    requestsList.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading key requests</td></tr>';
+                    }
                 }
-                } catch (error) {
-                console.error(`Error deleting ${itemType}:`, error);
-                alert(`Failed to delete ${itemType}`);
+                
+                function renderKeyRequests(requests) {
+                    const requestsList = document.getElementById('requestsList');
+                    
+                    if (!requests.length) {
+                    requestsList.innerHTML = '<tr><td colspan="6" class="text-center">No key requests found</td></tr>';
+                    return;
+                    }
+                    
+                    let html = '';
+                    
+                    requests.forEach(request => {
+                    const date = new Date(request.createdAt).toLocaleDateString();
+                    let statusBadge = '';
+                    
+                    // Status badge styling
+                    switch (request.status) {
+                        case 'pending':
+                        statusBadge = '<span class="badge bg-warning">Pending</span>';
+                        break;
+                        case 'approved':
+                        statusBadge = '<span class="badge bg-success">Approved</span>';
+                        break;
+                        case 'rejected':
+                        statusBadge = '<span class="badge bg-danger">Rejected</span>';
+                        break;
+                        default:
+                        statusBadge = '<span class="badge bg-secondary">Unknown</span>';
+                    }
+                    
+                    // Truncate long usage descriptions
+                    const usage = request.usage.length > 50 
+                        ? request.usage.substring(0, 50) + '...' 
+                        : request.usage;
+                    
+                    // Action buttons based on status
+                    let actionButtons = '';
+                    
+                    if (request.status === 'pending') {
+                        actionButtons = `
+                        <button class="btn btn-sm btn-success approve-request-btn" data-id="${request._id}">Approve</button>
+                        <button class="btn btn-sm btn-danger reject-request-btn" data-id="${request._id}">Reject</button>
+                        `;
+                    } else if (request.status === 'approved' && request.apiKeyId) {
+                        actionButtons = `
+                        <button class="btn btn-sm btn-secondary view-key-btn" data-id="${request.apiKeyId}">View Key</button>
+                        `;
+                    } else {
+                        actionButtons = `
+                        <button class="btn btn-sm btn-outline-secondary" disabled>No Actions</button>
+                        `;
+                    }
+                    
+                    html += `
+                        <tr>
+                        <td>${request.name}</td>
+                        <td>
+                            <a href="mailto:${request.email}">${request.email}</a>
+                        </td>
+                        <td title="${request.usage}">${usage}</td>
+                        <td>${statusBadge}</td>
+                        <td>${date}</td>
+                        <td>
+                            ${actionButtons}
+                        </td>
+                        </tr>
+                    `;
+                    });
+                    
+                    requestsList.innerHTML = html;
+                    
+                    // Add approve buttons click handlers
+                    document.querySelectorAll('.approve-request-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const requestId = btn.dataset.id;
+                        approveKeyRequest(requestId);
+                    });
+                    });
+                    
+                    // Add reject buttons click handlers
+                    document.querySelectorAll('.reject-request-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const requestId = btn.dataset.id;
+                        rejectKeyRequest(requestId);
+                    });
+                    });
+                    
+                    // Add view key buttons click handlers
+                    document.querySelectorAll('.view-key-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const keyId = btn.dataset.id;
+                        // Navigate to the Keys tab and highlight the specific key
+                        document.getElementById('keys-tab').click();
+                        // You could add functionality to highlight the specific key
+                    });
+                    });
                 }
-            }
+                
+                async function approveKeyRequest(requestId) {
+                    if (!confirm('Approve this key request? An API key will be generated and emailed to the requester.')) {
+                    return;
+                    }
+                    
+                    try {
+                    const response = await fetch(`${API_BASE_URL}/key-requests/${requestId}/approve`, {
+                        method: 'PATCH',
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to approve key request');
+                    }
+                    
+                    // Reload key requests
+                    loadKeyRequests();
+                    
+                    // Also reload API keys as a new one was created
+                    if (typeof loadApiKeys === 'function') {
+                        loadApiKeys();
+                    }
+                    
+                    } catch (error) {
+                    console.error('Error approving key request:', error);
+                    alert('Failed to approve key request');
+                    }
+                }
+                
+                async function rejectKeyRequest(requestId) {
+                    if (!confirm('Reject this key request?')) {
+                    return;
+                    }
+                    
+                    try {
+                    const response = await fetch(`${API_BASE_URL}/key-requests/${requestId}/reject`, {
+                        method: 'PATCH',
+                        headers: {
+                        'X-Admin-Secret': adminSecret
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to reject key request');
+                    }
+                    
+                    // Reload key requests
+                    loadKeyRequests();
+                    
+                    } catch (error) {
+                    console.error('Error rejecting key request:', error);
+                    alert('Failed to reject key request');
+                    }
+                }
             });
         </script>
     </body>

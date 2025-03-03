@@ -38,8 +38,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response, next: NextFun
       res.status(400).json(response);
       return;
     }
-    
-    // Check for potential duplicates (exact text match)
+
     const existingQuote = await Quote.findOne({ 
       text: { $regex: new RegExp('^' + text.trim() + '$', 'i') }
     });
@@ -86,27 +85,22 @@ router.get('/', requireAdmin, async (req: Request, res: Response, next: NextFunc
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
-    
-    // Allow filtering
+
     const filter: Record<string, any> = {};
-    
-    // Filter by publication status if specified
+
     if (req.query.isPublished !== undefined) {
       filter.isPublished = req.query.isPublished === 'true';
     }
-    
-    // Filter by tag if specified
+
     if (req.query.tag) {
       filter.tags = req.query.tag;
     }
-    
-    // Get quotes with pagination and filtering
+
     const quotes = await Quote.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
     
-    // Get total count for pagination info
     const total = await Quote.countDocuments(filter);
     
     const response: ApiResponse<IQuote[]> = {

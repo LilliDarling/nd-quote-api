@@ -3,10 +3,8 @@ import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import mongoose from 'mongoose';
 import Quote from '../models/Quotes';
-import { IQuote } from '../types';
 import path from 'path';
 
-// Load environment variables
 dotenv.config();
 
 /**
@@ -20,7 +18,6 @@ async function importFromCSV(filePath: string, skipDuplicates: boolean = true): 
   errors: string[];
 }> {
   try {
-    // Connect to MongoDB
     await mongoose.connect(process.env.MONGODB_URI as string);
     console.log('Connected to MongoDB for import');
 
@@ -39,13 +36,11 @@ async function importFromCSV(filePath: string, skipDuplicates: boolean = true): 
     for await (const line of rl) {
       lineNumber++;
 
-      // Skip header line if present
       if (lineNumber === 1 && line.toLowerCase().includes('text') && line.toLowerCase().includes('author')) {
         continue;
       }
 
       try {
-        // Parse CSV line (handling quotes and commas properly)
         const columns = parseCSVLine(line);
         
         if (columns.length < 2) {
@@ -56,13 +51,11 @@ async function importFromCSV(filePath: string, skipDuplicates: boolean = true): 
         const [text, author, source, tagsString] = columns;
         const tags = tagsString?.split(',').map(tag => tag.trim()).filter(Boolean) || [];
 
-        // Skip empty entries
         if (!text.trim() || !author.trim()) {
           errors.push(`Line ${lineNumber}: Missing required fields`);
           continue;
         }
 
-        // Check for duplicates if required
         if (skipDuplicates) {
           const existingQuote = await Quote.findOne({ 
             text: { $regex: new RegExp('^' + escapeRegExp(text.trim()) + '$', 'i') }
@@ -75,7 +68,6 @@ async function importFromCSV(filePath: string, skipDuplicates: boolean = true): 
           }
         }
 
-        // Create quote
         await Quote.create({
           text: text.trim(),
           author: author.trim(),
@@ -115,31 +107,25 @@ function parseCSVLine(line: string): string[] {
     const char = line[i];
     
     if (char === '"') {
-      // If we see a quote inside quotes, and the next character is also a quote, 
-      // it's an escaped quote
       if (inQuotes && line[i + 1] === '"') {
         current += '"';
-        i++; // Skip the next quote
+        i++;
         continue;
       }
       
-      // Toggle quote state
       inQuotes = !inQuotes;
       continue;
     }
     
     if (char === ',' && !inQuotes) {
-      // End of field
       result.push(current);
       current = '';
       continue;
     }
-    
-    // Normal character
+
     current += char;
   }
-  
-  // Add the last field
+
   result.push(current);
   
   return result;
@@ -152,7 +138,6 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Command line execution
 if (require.main === module) {
   const args = process.argv.slice(2);
   

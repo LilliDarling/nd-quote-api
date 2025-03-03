@@ -45,7 +45,7 @@ apiKeySchema.statics.generateKey = async function(name: string, description: str
         key,
         name,
         description
-      }) as IApiKey;
+    }) as IApiKey;
 };
 
 const ApiKey = mongoose.model<IApiKey, IApiKeyModel>('ApiKey', apiKeySchema);
