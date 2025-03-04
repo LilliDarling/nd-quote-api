@@ -1,8 +1,7 @@
-import express, { Router } from 'express';
+import express from 'express';
 import serverless from 'serverless-http';
 import cors from 'cors';
 import helmet from 'helmet';
-import path from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -15,7 +14,6 @@ import keyRequestsRouter from '../../src/api/keyRequests';
 import '../../src/utils/db';
 
 const app = express();
-const router = Router();
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -31,12 +29,12 @@ app.use(helmet({
 app.use(cors());
 app.use(express.json());
 
-router.use('/quotes', quotesRouter);
-router.use('/keys', keysRouter);
-router.use('/admin/quotes', adminQuotesRouter);
-router.use('/key-requests', keyRequestsRouter);
+app.use('/api/quotes', quotesRouter);
+app.use('/api/keys', keysRouter);
+app.use('/api/admin/quotes', adminQuotesRouter);
+app.use('/api/key-requests', keyRequestsRouter);
 
-router.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({
     status: 'success',
     data: {
@@ -47,10 +45,8 @@ router.get('/', (req, res) => {
   });
 });
 
-app.use('/api', router);
-
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('API Error:', err);
   res.status(500).json({
     status: 'error',
     message: 'Something went wrong!'
