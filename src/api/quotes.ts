@@ -1,5 +1,5 @@
 import express, { Request, Response, Router, NextFunction } from 'express';
-import Quote from '../models/Quotes';
+import { ObjectId } from 'mongodb';
 import { validateApiKey } from '../middleware/auth';
 import { ApiResponse, PaginationInfo, IQuote } from '../types';
 
@@ -9,9 +9,13 @@ const router: Router = express.Router();
  * GET /api/quotes/random
  * Get a random quote
  */
-router.get('/random', validateApiKey, async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+router.get('/random', validateApiKey, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const count = await Quote.countDocuments({ isPublished: true });
+        // @ts-ignore - Added by middleware in the Netlify function
+        const db = await req.getDatabase();
+        const collection = db.collection('quotes');
+
+        const count = await collection.countDocuments({ isPublished: true });
         
         if (count === 0) {
             const response: ApiResponse<null> = {
@@ -19,18 +23,22 @@ router.get('/random', validateApiKey, async (_req: Request, _res: Response, next
                 message: 'No quotes found'
             };
             
-            _res.status(404).json(response);
+            res.status(404).json(response);
+            return;
         }
-        
+
         const random = Math.floor(Math.random() * count);
-        const quote = await Quote.findOne({ isPublished: true }).skip(random);
+        const quote = await collection.findOne(
+            { isPublished: true },
+            { skip: random }
+        );
         
         const response: ApiResponse<IQuote> = {
             status: 'success',
-            data: quote as IQuote
+            data: quote as unknown as IQuote
         };
         
-        _res.json(response);
+        res.json(response);
     } catch (error) {
         console.error('Error fetching random quote:', error);
         
@@ -47,18 +55,23 @@ router.get('/random', validateApiKey, async (_req: Request, _res: Response, next
  * GET /api/quotes
  * Get all quotes (with pagination)
  */
-router.get('/', validateApiKey, async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+router.get('/', validateApiKey, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const page = parseInt(_req.query.page as string) || 1;
-        const limit = parseInt(_req.query.limit as string) || 10;
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
         const skip = (page - 1) * limit;
-        
-        const quotes = await Quote.find({ isPublished: true })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
 
-        const total = await Quote.countDocuments({ isPublished: true });
+        // @ts-ignore - Added by middleware in the Netlify function
+        const db = await req.getDatabase();
+        const collection = db.collection('quotes');
+
+        const quotes = await collection.find({ isPublished: true })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .toArray();
+
+        const total = await collection.countDocuments({ isPublished: true });
         
         const pagination: PaginationInfo = {
             total,
@@ -69,11 +82,11 @@ router.get('/', validateApiKey, async (_req: Request, _res: Response, next: Next
         
         const response: ApiResponse<IQuote[]> = {
             status: 'success',
-            data: quotes as IQuote[],
+            data: quotes as unknown as IQuote[],
             pagination
         };
         
-        _res.json(response);
+        res.json(response);
     } catch (error) {
         console.error('Error fetching quotes:', error);
         
@@ -90,10 +103,14 @@ router.get('/', validateApiKey, async (_req: Request, _res: Response, next: Next
  * GET /api/quotes/:id
  * Get a specific quote by ID
  */
-router.get('/:id', validateApiKey, async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+router.get('/:id', validateApiKey, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-        const quote = await Quote.findOne({ 
-            _id: _req.params.id,
+        // @ts-ignore - Added by middleware in the Netlify function
+        const db = await req.getDatabase();
+        const collection = db.collection('quotes');
+
+        const quote = await collection.findOne({ 
+            _id: new ObjectId(req.params.id),
             isPublished: true
         });
         
@@ -103,15 +120,16 @@ router.get('/:id', validateApiKey, async (_req: Request, _res: Response, next: N
                 message: 'Quote not found'
             };
             
-            _res.status(404).json(response);
+            res.status(404).json(response);
+            return;
         }
         
         const response: ApiResponse<IQuote> = {
             status: 'success',
-            data: quote as IQuote
+            data: quote as unknown as IQuote
         };
         
-        _res.json(response);
+        res.json(response);
     } catch (error) {
         console.error('Error fetching quote:', error);
         

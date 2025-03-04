@@ -1,5 +1,5 @@
 import express, { Request, Response, Router, NextFunction } from 'express';
-import Quote from '../../models/Quotes';
+import { ObjectId } from 'mongodb';
 import { requireAdmin } from '../../middleware/auth';
 import { ApiResponse, IQuote } from '../../types';
 
@@ -39,7 +39,11 @@ router.post('/', requireAdmin, async (req: Request, res: Response, next: NextFun
       return;
     }
 
-    const existingQuote = await Quote.findOne({ 
+    // @ts-ignore - Added by middleware in the Netlify function
+    const db = await req.getDatabase();
+    const collection = db.collection('quotes');
+
+    const existingQuote = await collection.findOne({ 
       text: { $regex: new RegExp('^' + text.trim() + '$', 'i') }
     });
     
@@ -47,19 +51,25 @@ router.post('/', requireAdmin, async (req: Request, res: Response, next: NextFun
       res.status(409).json({ status: 'error', message: 'A quote with this text already exists' });
       return;
     }
-    
-    const quote = await Quote.create({
+
+    const newQuote = {
       text,
       author,
       source,
-      tags,
-      isPublished
-    });
+      tags: tags || [],
+      isPublished,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await collection.insertOne(newQuote);
+
+    const quote = await collection.findOne({ _id: result.insertedId });
     
     const response: ApiResponse<IQuote> = { 
       status: 'success',
       message: 'Quote created successfully',
-      data: quote as IQuote
+      data: quote as unknown as IQuote
     };
     
     res.status(201).json(response);
@@ -96,16 +106,21 @@ router.get('/', requireAdmin, async (req: Request, res: Response, next: NextFunc
       filter.tags = req.query.tag;
     }
 
-    const quotes = await Quote.find(filter)
+    // @ts-ignore - Added by middleware in the Netlify function
+    const db = await req.getDatabase();
+    const collection = db.collection('quotes');
+
+    const quotes = await collection.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
-    
-    const total = await Quote.countDocuments(filter);
+      .limit(limit)
+      .toArray();
+
+    const total = await collection.countDocuments(filter);
     
     const response: ApiResponse<IQuote[]> = {
       status: 'success',
-      data: quotes as IQuote[],
+      data: quotes as unknown as IQuote[],
       pagination: {
         total,
         page,
@@ -134,7 +149,11 @@ router.get('/', requireAdmin, async (req: Request, res: Response, next: NextFunc
  */
 router.get('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const quote = await Quote.findById(req.params.id);
+    // @ts-ignore - Added by middleware in the Netlify function
+    const db = await req.getDatabase();
+    const collection = db.collection('quotes');
+
+    const quote = await collection.findOne({ _id: new ObjectId(req.params.id) });
     
     if (!quote) {
       const response: ApiResponse<null> = {
@@ -148,7 +167,7 @@ router.get('/:id', requireAdmin, async (req: Request, res: Response, next: NextF
     
     const response: ApiResponse<IQuote> = {
       status: 'success',
-      data: quote as IQuote
+      data: quote as unknown as IQuote
     };
     
     res.json(response);
@@ -172,22 +191,30 @@ router.get('/:id', requireAdmin, async (req: Request, res: Response, next: NextF
 router.put('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { text, author, source, tags, isPublished } = req.body as UpdateQuoteRequest;
+
+    const updates: any = {
+      $set: {
+        updatedAt: new Date()
+      }
+    };
     
-    const updates: Partial<IQuote> = {};
-    
-    if (text !== undefined) updates.text = text;
-    if (author !== undefined) updates.author = author;
-    if (source !== undefined) updates.source = source;
-    if (tags !== undefined) updates.tags = tags;
-    if (isPublished !== undefined) updates.isPublished = isPublished;
-    
-    const quote = await Quote.findByIdAndUpdate(
-      req.params.id,
+    if (text !== undefined) updates.$set.text = text;
+    if (author !== undefined) updates.$set.author = author;
+    if (source !== undefined) updates.$set.source = source;
+    if (tags !== undefined) updates.$set.tags = tags;
+    if (isPublished !== undefined) updates.$set.isPublished = isPublished;
+
+    // @ts-ignore - Added by middleware in the Netlify function
+    const db = await req.getDatabase();
+    const collection = db.collection('quotes');
+
+    const result = await collection.findOneAndUpdate(
+      { _id: new ObjectId(req.params.id) },
       updates,
-      { new: true }
+      { returnDocument: 'after' }
     );
     
-    if (!quote) {
+    if (!result.value) {
       const response: ApiResponse<null> = {
         status: 'error',
         message: 'Quote not found'
@@ -200,7 +227,7 @@ router.put('/:id', requireAdmin, async (req: Request, res: Response, next: NextF
     const response: ApiResponse<IQuote> = {
       status: 'success',
       message: 'Quote updated successfully',
-      data: quote as IQuote
+      data: result.value as unknown as IQuote
     };
 
     res.json(response);
@@ -222,9 +249,13 @@ router.put('/:id', requireAdmin, async (req: Request, res: Response, next: NextF
  */
 router.delete('/:id', requireAdmin, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const quote = await Quote.findByIdAndDelete(req.params.id);
+    // @ts-ignore - Added by middleware in the Netlify function
+    const db = await req.getDatabase();
+    const collection = db.collection('quotes');
+
+    const result = await collection.findOneAndDelete({ _id: new ObjectId(req.params.id) });
     
-    if (!quote) {
+    if (!result.value) {
       const response: ApiResponse<null> = {
         status: 'error',
         message: 'Quote not found'
@@ -254,12 +285,16 @@ router.delete('/:id', requireAdmin, async (req: Request, res: Response, next: Ne
 });
 
 /**
- * GET /api/admin/quotes/tags
+ * GET /api/admin/quotes/tags/all
  * Get all unique tags
  */
 router.get('/tags/all', requireAdmin, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const tags = await Quote.distinct('tags');
+    // @ts-ignore - Added by middleware in the Netlify function
+    const db = await req.getDatabase();
+    const collection = db.collection('quotes');
+    
+    const tags = await collection.distinct('tags');
     
     const response: ApiResponse<string[]> = {
       status: 'success',
@@ -281,4 +316,3 @@ router.get('/tags/all', requireAdmin, async (req: Request, res: Response, next: 
 });
 
 export default router;
-
