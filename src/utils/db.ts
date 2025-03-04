@@ -1,38 +1,46 @@
-import mongoose from 'mongoose';
+import mongoose, { ConnectOptions } from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+
+let cachedConnection: typeof mongoose | null = null;
+
+const MONGODB_URI = process.env.MONGODB_URI || '';
 
 if (!MONGODB_URI) {
   console.error('MONGODB_URI environment variable is not set');
-  process.exit(1);
 }
 
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB');
-  })
-  .catch((error) => {
-    console.error('Error connecting to MongoDB:', error.message);
-    process.exit(1);
-  });
+const connectToMongoDB = async () => {
+  if (cachedConnection && mongoose.connection.readyState === 1) {
+    console.log('Using existing database connection');
+    return mongoose.connection;
+  }
 
+  try {
+    console.log('Creating new database connection');
+    
+    const options: ConnectOptions = {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      retryWrites: true,
+      w: 'majority'
+    } as ConnectOptions;
+    
+    const conn = await mongoose.connect(MONGODB_URI, options);
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    
+    cachedConnection = conn;
+    
+    return mongoose.connection;
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    return null;
+  }
+};
 
-mongoose.connection.on('connected', () => {
-  console.log('Mongoose connected to DB');
-});
+connectToMongoDB();
 
-mongoose.connection.on('error', (err) => {
-  console.log('Mongoose connection error: ' + err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('Mongoose disconnected');
-});
-
-process.on('SIGINT', async () => {
-  await mongoose.connection.close();
-  console.log('App terminated, closing MongoDB connection');
-  process.exit(0);
-});
+export const getConnection = async () => {
+  return await connectToMongoDB();
+};
 
 export default mongoose.connection;

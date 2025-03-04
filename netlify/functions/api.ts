@@ -11,6 +11,8 @@ import keysRouter from '../../src/api/keys';
 import adminQuotesRouter from '../../src/api/admin/quotes';
 import keyRequestsRouter from '../../src/api/keyRequests';
 
+import { getConnection } from '../../src/utils/db';
+
 import '../../src/utils/db';
 
 const app = express();
@@ -28,6 +30,19 @@ app.use(helmet({
 }));
 app.use(cors());
 app.use(express.json());
+
+app.use(async (req, res, next) => {
+    try {
+      const conn = await getConnection();
+      if (!conn) {
+        console.error('⚠️ No database connection available');
+      }
+      next();
+    } catch (err) {
+      console.error('❌ Error connecting to database:', err);
+      next();
+    }
+});
 
 app.use('/api/quotes', quotesRouter);
 app.use('/api/keys', keysRouter);
